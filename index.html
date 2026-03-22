@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FindIt — Lost & Found</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --bg:#0d0f14; --surface:#161920; --surface2:#1e2230; --border:#2a2f3e;
+  --accent:#f0c040; --accent2:#4f8ef7; --lost:#ff6b6b; --found:#5bde8a;
+  --urgent:#ff9900; --text:#eef0f6; --muted:#7a8097; --radius:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse 60% 50% at 80% 10%,rgba(79,142,247,.08) 0%,transparent 60%),
+             radial-gradient(ellipse 40% 40% at 10% 80%,rgba(240,192,64,.06) 0%,transparent 60%);}
+
+/* ── AUTH SCREEN ─────────────────────────────────── */
+#authScreen{position:fixed;inset:0;z-index:999;background:#0d0f14;display:flex;align-items:center;justify-content:center;padding:24px;}
+.auth-box{width:100%;max-width:440px;animation:fadeUp .5s ease both;}
+
+/* Logo */
+.auth-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.8rem;letter-spacing:-.5px;display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:6px;}
+.auth-logo-dot{width:13px;height:13px;border-radius:50%;background:var(--accent);box-shadow:0 0 16px var(--accent);}
+.auth-subtitle{text-align:center;color:var(--muted);font-size:.88rem;margin-bottom:28px;}
+
+/* Social buttons */
+.social-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:12px;padding:14px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:.95rem;font-weight:500;cursor:pointer;transition:all .18s;margin-bottom:12px;}
+.social-btn:hover{background:var(--surface2);border-color:var(--muted);}
+.social-icon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+/* Divider */
+.auth-divider{display:flex;align-items:center;gap:14px;margin:6px 0 20px;}
+.auth-divider-line{flex:1;height:1px;background:var(--border);}
+.auth-divider-text{font-size:.78rem;color:var(--muted);white-space:nowrap;}
+
+/* Labels */
+.auth-field-label{display:block;font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;}
+
+/* Inputs */
+.auth-input-wrap{position:relative;margin-bottom:16px;}
+.auth-input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:.5;}
+.eye-toggle{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:20px;height:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.45;transition:opacity .18s;background:none;border:none;padding:0;}
+.eye-toggle:hover{opacity:.9;}
+.auth-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 14px 14px 44px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.95rem;outline:none;transition:border-color .2s;}
+.auth-input:focus{border-color:var(--accent2);}
+.auth-input::placeholder{color:var(--muted);}
+
+/* Forgot */
+.auth-forgot{display:block;text-align:right;font-size:.82rem;color:var(--accent2);text-decoration:none;margin-top:-10px;margin-bottom:20px;cursor:pointer;}
+.auth-forgot:hover{text-decoration:underline;}
+
+/* Sign in button */
+.auth-btn{width:100%;padding:15px;border-radius:12px;border:none;background:var(--accent);color:#0d0f14;font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;transition:all .18s;letter-spacing:.2px;}
+.auth-btn:hover{background:#f7d060;transform:translateY(-1px);box-shadow:0 8px 24px rgba(240,192,64,.35);}
+
+/* Bottom text */
+.auth-footer{text-align:center;font-size:.82rem;color:var(--muted);margin-top:20px;line-height:1.8;}
+.auth-footer a{color:var(--accent2);text-decoration:none;font-weight:500;}
+.auth-footer a:hover{text-decoration:underline;}
+
+/* Tab switch (signup only) */
+.auth-tabs{display:flex;background:var(--surface2);border-radius:10px;padding:4px;gap:4px;margin-bottom:22px;}
+.auth-tab{flex:1;padding:9px;border-radius:7px;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:500;cursor:pointer;transition:all .18s;}
+.auth-tab.active{background:var(--surface);color:var(--text);font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3);}
+
+/* Error */
+.auth-error{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);border-radius:8px;padding:10px 14px;font-size:.83rem;color:var(--lost);display:none;margin-bottom:12px;}
+.auth-form{display:flex;flex-direction:column;}
+
+/* ── MAIN APP (hidden until login) ───────────────── */
+#mainApp{display:none;}
+
+/* ── HEADER ──────────────────────────────────────── */
+header{position:sticky;top:0;z-index:100;background:rgba(13,15,20,.92);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.25rem;letter-spacing:-.5px;display:flex;align-items:center;gap:10px;}
+.logo-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);}
+.header-right{display:flex;align-items:center;gap:8px;}
+.user-pill{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:100px;padding:5px 14px 5px 6px;cursor:pointer;transition:all .18s;}
+.user-pill:hover{border-color:var(--accent);}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0d0f14;font-family:'Syne',sans-serif;font-weight:800;font-size:.78rem;display:flex;align-items:center;justify-content:center;}
+.user-name{font-size:.82rem;font-weight:600;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.logout-btn{padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:.78rem;cursor:pointer;transition:all .18s;}
+.logout-btn:hover{color:var(--lost);border-color:var(--lost);}
+
+/* ── BUTTONS ─────────────────────────────────────── */
+.btn{padding:8px 18px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:500;cursor:pointer;border:none;transition:all .18s;}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted);}
+.btn-primary{background:var(--accent);color:#0d0f14;font-weight:700;}
+.btn-primary:hover{background:#f7d060;transform:translateY(-1px);box-shadow:0 6px 20px rgba(240,192,64,.3);}
+.btn-lost{background:rgba(255,107,107,.12);color:var(--lost);border:1px solid rgba(255,107,107,.3);font-weight:600;}
+.btn-lost:hover{background:rgba(255,107,107,.22);}
+.btn-found{background:rgba(91,222,138,.12);color:var(--found);border:1px solid rgba(91,222,138,.3);font-weight:600;}
+.btn-found:hover{background:rgba(91,222,138,.22);}
+.btn-lg{padding:13px 28px;font-size:.95rem;border-radius:10px;}
+
+/* ── HERO ────────────────────────────────────────── */
+.hero{position:relative;z-index:1;text-align:center;padding:64px 24px 44px;}
+h1{font-family:'Syne',sans-serif;font-size:clamp(2rem,5vw,3.4rem);font-weight:800;line-height:1.1;letter-spacing:-1.5px;margin-bottom:16px;animation:fadeUp .6s .1s ease both;}
+h1 span{color:var(--accent);}
+.hero-sub{color:var(--muted);font-size:1rem;max-width:500px;margin:0 auto 36px;line-height:1.6;animation:fadeUp .6s .2s ease both;}
+.hero-cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;animation:fadeUp .6s .3s ease both;}
+
+/* ── STATS ───────────────────────────────────────── */
+.stats-bar{position:relative;z-index:1;display:flex;max-width:640px;margin:0 auto 52px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;animation:fadeUp .6s .4s ease both;}
+.stat{flex:1;padding:16px;text-align:center;border-right:1px solid var(--border);}
+.stat:last-child{border-right:none;}
+.stat-num{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--accent);}
+.stat-label{font-size:.7rem;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ── SEARCH ──────────────────────────────────────── */
+.search-section{position:relative;z-index:1;max-width:860px;margin:0 auto 40px;padding:0 24px;animation:fadeUp .6s .5s ease both;}
+.search-bar{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px;transition:border-color .2s;}
+.search-bar:focus-within{border-color:var(--accent2);}
+.search-bar input{flex:1;background:transparent;border:none;padding:14px 18px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.95rem;outline:none;}
+.search-bar input::placeholder{color:var(--muted);}
+.search-bar .search-btn{background:var(--accent2);border:none;padding:0 22px;color:white;font-size:1rem;cursor:pointer;transition:background .2s;}
+.search-bar .search-btn:hover{background:#6fa0ff;}
+.filters{display:flex;gap:8px;flex-wrap:wrap;}
+.filter-chip{padding:6px 14px;border-radius:100px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.8rem;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .18s;}
+.filter-chip:hover,.filter-chip.active{background:var(--surface2);color:var(--text);border-color:var(--muted);}
+.filter-chip.active{border-color:var(--accent);color:var(--accent);}
+
+/* ── GRID ────────────────────────────────────────── */
+.grid-section{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 24px 80px;}
+.section-title{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;}
+.section-title span{color:var(--muted);font-size:.85rem;font-weight:400;font-family:'DM Sans',sans-serif;}
+.my-posts-btn{font-size:.8rem;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .18s;}
+.my-posts-btn.active,.my-posts-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px;}
+
+/* ── CARD ────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:transform .2s,box-shadow .2s;animation:fadeUp .5s ease both;}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.4);}
+.card.resolved{opacity:.45;filter:grayscale(.5);}
+.card.my-post{border-color:rgba(79,142,247,.35);}
+.card-img{width:100%;height:160px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:3rem;border-bottom:1px solid var(--border);overflow:hidden;position:relative;}
+.card-img img{width:100%;height:100%;object-fit:cover;}
+.card-badge-wrap{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
+.cbadge{font-size:.63rem;font-weight:800;padding:3px 9px;border-radius:100px;text-transform:uppercase;letter-spacing:.4px;}
+.cbadge-resolved{background:rgba(91,222,138,.9);color:#0d0f14;}
+.cbadge-urgent{background:var(--urgent);color:white;}
+.cbadge-mine{background:rgba(79,142,247,.85);color:white;}
+.card-body{padding:16px;}
+.card-header{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+.card-tag{display:inline-block;padding:3px 10px;border-radius:100px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+.tag-lost{background:rgba(255,107,107,.15);color:var(--lost);}
+.tag-found{background:rgba(91,222,138,.15);color:var(--found);}
+.tag-urgent{background:rgba(255,153,0,.15);color:var(--urgent);border:1px solid rgba(255,153,0,.3);}
+.card-category{font-size:.72rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--muted);}
+.card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;margin-bottom:6px;line-height:1.3;}
+.card-desc{font-size:.82rem;color:var(--muted);line-height:1.5;margin-bottom:10px;}
+.card-extra{font-size:.78rem;margin-bottom:6px;}
+.card-meta{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:12px;gap:8px;}
+.card-location{font-size:.75rem;color:var(--muted);line-height:1.5;}
+.card-actions{display:flex;gap:5px;flex-shrink:0;}
+.card-btn{padding:5px 9px;font-size:.72rem;border-radius:6px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;transition:all .18s;white-space:nowrap;color:var(--muted);}
+.card-btn.contact-btn{color:var(--accent2);border-color:rgba(79,142,247,.3);}
+.card-btn.contact-btn:hover{background:rgba(79,142,247,.15);}
+.card-btn.resolve-btn{color:var(--found);border-color:rgba(91,222,138,.3);}
+.card-btn.resolve-btn:hover{background:rgba(91,222,138,.15);}
+.card-btn.map-btn{color:var(--accent);border-color:rgba(240,192,64,.3);}
+.card-btn.map-btn:hover{background:rgba(240,192,64,.1);}
+.card-btn.delete-btn{color:var(--lost);border-color:rgba(255,107,107,.3);}
+.card-btn.delete-btn:hover{background:rgba(255,107,107,.1);}
+.match-banner{background:rgba(240,192,64,.08);border:1px solid rgba(240,192,64,.25);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:.78rem;color:var(--accent);}
+
+/* ── MODAL ───────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:200;
+  display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:520px;
+  padding:28px 32px;transform:translateY(20px);transition:transform .25s;max-height:92vh;overflow-y:auto;}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;}
+.modal-title{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;}
+.modal-close{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.modal-close:hover{color:var(--text);border-color:var(--muted);}
+
+/* ── FORM ────────────────────────────────────────── */
+.form-group{margin-bottom:16px;}
+.form-label{display:block;font-size:.78rem;font-weight:500;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;}
+.form-input,.form-textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:11px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.9rem;outline:none;transition:border-color .2s;}
+.form-input:focus,.form-textarea:focus{border-color:var(--accent2);}
+.form-input::placeholder,.form-textarea::placeholder{color:var(--muted);}
+.form-textarea{resize:vertical;min-height:80px;}
+.urgent-check-wrap{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,153,0,.07);border:1px solid rgba(255,153,0,.25);border-radius:9px;margin-bottom:16px;cursor:pointer;}
+.urgent-check-wrap input{width:16px;height:16px;accent-color:var(--urgent);cursor:pointer;flex-shrink:0;}
+.urgent-check-wrap label{font-size:.88rem;color:var(--muted);cursor:pointer;line-height:1.4;}
+
+/* ── UPLOAD ──────────────────────────────────────── */
+.upload-area{border:2px dashed var(--border);border-radius:9px;padding:22px;text-align:center;cursor:pointer;transition:all .2s;}
+.upload-area:hover{border-color:var(--accent2);background:rgba(79,142,247,.05);}
+.upload-icon{font-size:2rem;margin-bottom:6px;}
+.upload-text{font-size:.83rem;color:var(--muted);}
+.upload-text strong{color:var(--accent2);}
+.upload-preview{width:100%;max-height:130px;object-fit:cover;border-radius:7px;margin-top:10px;display:none;}
+
+/* ── LOCATION ────────────────────────────────────── */
+.location-wrap{display:flex;gap:8px;}
+.location-wrap .form-input{flex:1;}
+.locate-btn{padding:11px 13px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--accent);cursor:pointer;font-size:.82rem;white-space:nowrap;transition:all .18s;font-family:'DM Sans',sans-serif;}
+.locate-btn:hover{border-color:var(--accent);}
+.map-link{font-size:.73rem;margin-top:4px;color:var(--accent2);text-decoration:none;display:none;}
+.map-link:hover{text-decoration:underline;}
+/* ── MAP PICKER ──────────────────────────────────── */
+.map-picker-container{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:8px;position:relative;touch-action:none;}
+.map-picker-el{height:240px;width:100%;cursor:crosshair;touch-action:none;}
+.map-picker-hint{font-size:.75rem;color:var(--muted);margin-top:5px;text-align:center;}
+.map-picker-hint.pinned{color:var(--found);}
+.map-addr-row{display:flex;gap:8px;margin-bottom:8px;}
+.map-addr-row .form-input{flex:1;}
+.map-addr-btn{padding:11px 13px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--accent2);cursor:pointer;font-size:.82rem;white-space:nowrap;transition:all .18s;font-family:'DM Sans',sans-serif;}
+.map-addr-btn:hover{border-color:var(--accent2);}
+.map-gps-btn{padding:11px 13px;border-radius:9px;border:1px solid rgba(79,142,247,.3);background:var(--surface2);color:var(--accent2);cursor:pointer;font-size:.82rem;white-space:nowrap;transition:all .18s;font-family:'DM Sans',sans-serif;}
+.map-gps-btn:hover{border-color:var(--accent2);background:rgba(79,142,247,.1);}
+
+/* ── CONTACT ROWS ────────────────────────────────── */
+.contact-info{padding:6px 0;}
+.contact-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);}
+.contact-row:last-child{border-bottom:none;}
+.contact-icon{font-size:1.2rem;width:30px;text-align:center;flex-shrink:0;}
+.contact-label{font-size:.73rem;color:var(--muted);margin-bottom:2px;}
+.contact-value{font-size:.9rem;font-weight:500;}
+
+/* ── PROFILE MODAL ───────────────────────────────── */
+.profile-avatar{width:64px;height:64px;border-radius:50%;background:var(--accent);color:#0d0f14;font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;}
+.profile-stat-row{display:flex;gap:12px;margin:16px 0;}
+.profile-stat{flex:1;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.profile-stat-num{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--accent);}
+.profile-stat-label{font-size:.7rem;color:var(--muted);margin-top:2px;}
+
+/* ── NOTIFY ──────────────────────────────────────── */
+.bell-btn{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;position:relative;transition:all .18s;}
+.bell-btn:hover{border-color:var(--accent2);}
+.bell-badge{position:absolute;top:-4px;right:-4px;background:var(--lost);color:white;border-radius:50%;width:16px;height:16px;font-size:.6rem;font-weight:800;display:none;align-items:center;justify-content:center;}
+.notify-item{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:11px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.notify-remove{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:1rem;transition:color .15s;}
+.notify-remove:hover{color:var(--lost);}
+
+/* ── EMPTY ───────────────────────────────────────── */
+.empty-state{text-align:center;padding:80px 24px;color:var(--muted);grid-column:1/-1;}
+.empty-state .icon{font-size:3.5rem;margin-bottom:14px;}
+.empty-state h3{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:8px;}
+.empty-state p{font-size:.88rem;line-height:1.6;}
+.empty-state .cta-hint{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+
+/* ── VIEWS COUNTER ───────────────────────────────── */
+.card-views{font-size:.7rem;color:var(--muted);display:flex;align-items:center;gap:3px;margin-top:3px;}
+
+/* ── DELETE CONFIRM MODAL ────────────────────────── */
+.confirm-modal{max-width:360px;text-align:center;padding:32px 28px;}
+.confirm-icon{font-size:3rem;margin-bottom:12px;}
+.confirm-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:8px;}
+.confirm-msg{font-size:.88rem;color:var(--muted);margin-bottom:24px;line-height:1.6;}
+.confirm-btns{display:flex;gap:10px;}
+.confirm-btns .btn{flex:1;padding:12px;}
+
+/* ── IMAGE ZOOM ──────────────────────────────────── */
+.zoom-overlay{position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;opacity:0;pointer-events:none;transition:opacity .25s;}
+.zoom-overlay.open{opacity:1;pointer-events:all;}
+.zoom-overlay img{max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain;box-shadow:0 0 60px rgba(0,0,0,.8);}
+.zoom-close{position:absolute;top:18px;right:18px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.12);border:none;color:white;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+
+/* ── DATE FILTER DROPDOWN ────────────────────────── */
+.date-filter-row{margin-top:10px;position:relative;display:inline-block;}
+.date-chip{padding:7px 16px;border-radius:100px;border:1px solid var(--accent2);background:var(--surface2);color:var(--accent2);font-size:.82rem;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;transition:all .18s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+.date-chip:hover{background:rgba(79,142,247,.1);}
+.date-dropdown{display:none;position:absolute;top:calc(100% + 8px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;min-width:180px;box-shadow:0 8px 30px rgba(0,0,0,.3);z-index:999;}
+.date-dropdown.open{display:block;}
+.date-dropdown button{width:100%;padding:13px 18px;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'DM Sans',sans-serif;font-size:.88rem;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;transition:background .15s;}
+.date-dropdown button:last-child{border-bottom:none;}
+.date-dropdown button:hover{background:var(--surface2);}
+.date-dropdown button.selected{color:var(--accent2);font-weight:700;background:rgba(79,142,247,.08);}
+
+/* ── AUTO MATCH POPUP ────────────────────────────── */
+.match-popup{position:fixed;bottom:90px;right:28px;background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px 18px;max-width:320px;z-index:400;transform:translateY(20px);opacity:0;pointer-events:none;transition:all .3s;box-shadow:0 8px 32px rgba(240,192,64,.2);}
+.match-popup.show{transform:translateY(0);opacity:1;pointer-events:all;}
+.match-popup-title{font-family:'Syne',sans-serif;font-weight:800;font-size:.95rem;color:var(--accent);margin-bottom:8px;}
+.match-popup-body{font-size:.83rem;color:var(--text);margin-bottom:12px;line-height:1.5;}
+.match-popup-close{position:absolute;top:10px;right:12px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:1rem;}
+.match-popup-footer{display:flex;gap:8px;}
+.match-popup-footer button{flex:1;padding:8px;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .18s;border:none;}
+
+/* ── SHARE & COPY ────────────────────────────────── */
+.card-btn.share-btn{color:#25D366;border-color:rgba(37,211,102,.3);}
+.card-btn.share-btn:hover{background:rgba(37,211,102,.1);}
+.copy-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:.72rem;cursor:pointer;margin-left:8px;transition:all .15s;font-family:'DM Sans',sans-serif;vertical-align:middle;}
+.copy-btn:hover{color:var(--found);border-color:var(--found);}
+.copy-btn.copied{color:var(--found);border-color:var(--found);}
+
+/* ── TOAST ───────────────────────────────────────── */
+.toast{position:fixed;bottom:28px;right:28px;background:var(--surface);border:1px solid var(--found);
+  border-radius:10px;padding:13px 20px;font-size:.87rem;color:var(--found);font-weight:500;
+  z-index:500;transform:translateY(80px);opacity:0;transition:all .3s;display:flex;align-items:center;gap:8px;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.toast.show{transform:translateY(0);opacity:1;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+@media(max-width:600px){header{padding:0 16px;}.grid-section,.search-section{padding:0 16px 60px;}.cards-grid{grid-template-columns:1fr;}.modal{padding:20px;}h1{letter-spacing:-1px;}.stats-bar{flex-wrap:wrap;}.stat{min-width:50%;}.user-name{display:none;}}
+</style>
+</head>
+<body>
+
+<!-- ══════════ AUTH SCREEN ══════════ -->
+<div id="authScreen">
+  <div class="auth-box">
+
+    <!-- Logo -->
+    <div class="auth-logo"><span class="auth-logo-dot"></span>FindIt</div>
+    <div class="auth-subtitle">Lost & Found — Anywhere, Anytime</div>
+
+    <!-- TABS -->
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchTab('signup')">Create Account</button>
+    </div>
+
+    <!-- ── LOGIN FORM ── -->
+    <div id="loginForm">
+      <!-- Social buttons -->
+      <button class="social-btn" onclick="showToast('Google login requires a backend server. Use email login instead.','notify')">
+        <span class="social-icon">
+          <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+        </span>
+        Continue with Google
+      </button>
+      <button class="social-btn" onclick="showToast('Apple login requires a backend server. Use email login instead.','notify')">
+        <span class="social-icon">
+          <svg width="20" height="20" viewBox="0 0 814 1000"><path fill="#ffffff" d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-42.3-150.3-109.2c-52.7-74.7-96.1-190.5-96.1-302.1 0-129.7 84-198.5 165.8-198.5 71.8 0 124.4 42.8 163.5 42.8 37.5 0 97-45.4 176.4-45.4 28.4 0 130.5 2.5 199.9 127.5zm-234.4-181.7c31.7-37.5 54.7-89.3 54.7-141.1 0-7.1-.5-14.2-1.5-20.5-52.2 2-113.6 34.5-150.6 77.7-28.2 32.4-55.1 83.5-55.1 136.3 0 8.2 1.5 16.2 2 19.3 3 .5 7.5 1 12 1 47.2 0 105.5-30.8 138.5-72.7z"/></svg>
+        </span>
+        Continue with Apple
+      </button>
+
+      <!-- Divider -->
+      <div class="auth-divider">
+        <div class="auth-divider-line"></div>
+        <span class="auth-divider-text">or use email</span>
+        <div class="auth-divider-line"></div>
+      </div>
+
+      <!-- Email/password inputs -->
+      <div class="auth-form">
+        <div>
+          <label class="auth-field-label">Email Address</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+            </span>
+            <input class="auth-input" type="text" id="loginUsername" placeholder="you@example.com">
+          </div>
+        </div>
+        <div>
+          <label class="auth-field-label">Password</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <input class="auth-input" type="password" id="loginPassword" placeholder="••••••••" style="padding-right:44px" onkeydown="if(event.key==='Enter')doLogin()">
+            <button type="button" class="eye-toggle" onclick="toggleEye('loginPassword','eyeLogin')" id="eyeLogin">
+              <svg id="eyeLoginIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <a class="auth-forgot" onclick="openForgotModal()">Forgot password?</a>
+        <div class="auth-error" id="loginError"></div>
+        <button class="auth-btn" onclick="doLogin()">Sign In →</button>
+      </div>
+
+      <div class="auth-footer">
+        Don't have an account? <a onclick="switchTab('signup')">Create one free</a><br>
+        By continuing you agree to our <a href="#">Terms</a> &amp; <a href="#">Privacy</a>
+      </div>
+    </div>
+
+    <!-- ── SIGNUP FORM ── -->
+    <div id="signupForm" style="display:none">
+      <div class="auth-form">
+        <div>
+          <label class="auth-field-label">Full Name</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            </span>
+            <input class="auth-input" type="text" id="signupName" placeholder="Your full name">
+          </div>
+        </div>
+        <div>
+          <label class="auth-field-label">Username</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <input class="auth-input" type="text" id="signupUsername" placeholder="username (no spaces)">
+          </div>
+        </div>
+        <div>
+          <label class="auth-field-label">Email or Phone</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+            </span>
+            <input class="auth-input" type="text" id="signupContact" placeholder="your@email.com or phone">
+          </div>
+        </div>
+        <div>
+          <label class="auth-field-label">Password</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <input class="auth-input" type="password" id="signupPassword" placeholder="min 4 characters" style="padding-right:44px" onkeydown="if(event.key==='Enter')doSignup()">
+            <button type="button" class="eye-toggle" onclick="toggleEye('signupPassword','eyeSignup')" id="eyeSignup">
+              <svg id="eyeSignupIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="auth-error" id="signupError"></div>
+        <button class="auth-btn" onclick="doSignup()">Create Account →</button>
+      </div>
+      <div class="auth-footer">
+        Already have an account? <a onclick="switchTab('login')">Sign in</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════ MAIN APP ══════════ -->
+<div id="mainApp">
+
+<header>
+  <div class="logo"><span class="logo-dot"></span>FindIt</div>
+  <div class="header-right">
+    <button class="bell-btn" onclick="openNotifyModal()" title="Notification alerts">
+      🔔<span class="bell-badge" id="bellBadge">0</span>
+    </button>
+    <div class="user-pill" onclick="openProfile()">
+      <div class="user-avatar" id="headerAvatar">?</div>
+      <span class="user-name" id="headerName">User</span>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">Logout</button>
+  </div>
+</header>
+
+<section class="hero">
+  <h1>Lost something?<br><span>Someone can help.</span></h1>
+  <p class="hero-sub">Post lost or found items from anywhere — malls, transit, parks, offices, events. Connect instantly with the right person.</p>
+  <div class="hero-cta">
+    <button class="btn btn-lost btn-lg" onclick="openPostModal('lost')">😔 I Lost Something</button>
+    <button class="btn btn-found btn-lg" onclick="openPostModal('found')">🎉 I Found Something</button>
+  </div>
+</section>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-num" id="totalItems">0</div><div class="stat-label">Total</div></div>
+  <div class="stat"><div class="stat-num" id="lostCount">0</div><div class="stat-label">Lost</div></div>
+  <div class="stat"><div class="stat-num" id="foundCount">0</div><div class="stat-label">Found</div></div>
+  <div class="stat"><div class="stat-num" id="resolvedCount">0</div><div class="stat-label">Resolved ✅</div></div>
+  <div class="stat"><div class="stat-num" id="categoryCount">0</div><div class="stat-label">Categories</div></div>
+</div>
+
+<div class="search-section">
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Search by item, category, city, location..." oninput="filterItems()">
+    <button class="search-btn" onclick="filterItems()">🔍</button>
+  </div>
+  <div class="filters" id="filterBar"></div>
+</div>
+</div>
+
+<div class="grid-section">
+  <div class="section-title">
+    Recent Posts <span id="itemCountLabel"></span>
+    <button class="my-posts-btn" id="myPostsBtn" onclick="toggleMyPosts()">👤 My Posts</button>
+  </div>
+  <div class="cards-grid" id="cardsGrid"></div>
+</div>
+
+<!-- ══ LOST MODAL ══ -->
+<div class="modal-overlay" id="lostModal">
+  <div class="modal" style="border-top:3px solid var(--lost)">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--lost)">😔 Report Lost Item</div>
+      <button class="modal-close" onclick="closeModal('lostModal')">✕</button>
+    </div>
+    <div class="form-group"><label class="form-label">Item Name *</label>
+      <input type="text" class="form-input" id="lostName" placeholder="e.g. Black leather wallet, Blue water bottle..."></div>
+    <div class="form-group"><label class="form-label">Category *</label>
+      <input type="text" class="form-input" id="lostCategory" placeholder="e.g. Wallet, Phone, Keys, Bag, ID Card..."></div>
+    <div class="form-group"><label class="form-label">City / Area *</label>
+      <input type="text" class="form-input" id="lostCity" placeholder="e.g. Chennai, Mumbai Airport, Lajpat Nagar..."></div>
+    <div class="urgent-check-wrap">
+      <input type="checkbox" id="lostUrgent">
+      <label for="lostUrgent">🚨 Mark as <strong style="color:var(--urgent)">Urgent</strong> — passport, medical card, or any critical item</label>
+    </div>
+    <div class="form-group"><label class="form-label">Last Seen Location</label>
+      <input type="text" class="form-input" id="lostLocation" placeholder="e.g. City Mall food court, Bus Stop 12..."></div>
+    <div class="form-group">
+      <label class="form-label">📍 Pick Location on Map <span style="font-size:.7rem;opacity:.55">(optional — tap map to drop pin)</span></label>
+      <div class="map-addr-row">
+        <input type="text" class="form-input" id="lostAddrSearch" placeholder="Search a place e.g. Puducherry Bus Stand...">
+        <button class="map-addr-btn" onclick="mapSearchAddr('lost')">🔍</button>
+        <button class="map-gps-btn" onclick="mapUseGPS('lost')">📡 Me</button>
+      </div>
+      <div class="map-picker-container">
+        <div class="map-picker-el" id="lostMapEl"></div>
+      </div>
+      <div class="map-picker-hint" id="lostMapHint">👆 Tap on the map to drop a pin at that location</div>
+      <a id="lostMapLink" class="map-link" target="_blank">🗺️ View on Google Maps ↗</a>
+    </div>
+    <div class="form-group"><label class="form-label">Date / Time Lost</label>
+      <input type="text" class="form-input" id="lostDateTime" placeholder="e.g. Today morning, Yesterday 3pm..."></div>
+    <div class="form-group"><label class="form-label">Description</label>
+      <textarea class="form-textarea" id="lostDesc" placeholder="Color, brand, size, unique features..."></textarea></div>
+    <div class="form-group"><label class="form-label">Upload Photo</label>
+      <div class="upload-area" onclick="document.getElementById('lostPhotoInput').click()">
+        <div class="upload-icon" id="lostUploadIcon">📷</div>
+        <div class="upload-text"><strong>Click to upload</strong> a photo</div>
+        <div class="upload-text" style="font-size:.73rem;margin-top:3px">JPG, PNG up to 5MB</div>
+        <img id="lostPreview" class="upload-preview" alt="">
+        <input type="file" id="lostPhotoInput" accept="image/*" style="display:none" onchange="handlePhoto(this,'lostUploadIcon','lostPreview','lost')">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your Name *</label>
+      <input type="text" class="form-input" id="lostContactName" placeholder="Your full name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your Contact (Email / Phone) *</label>
+      <input type="text" class="form-input" id="lostContactInfo" placeholder="your@email.com or phone number">
+    </div>
+    <button class="btn btn-lost" style="width:100%;padding:13px;font-size:.95rem;border-radius:10px;margin-top:4px;font-weight:700" onclick="submitLost()">😔 Post Lost Item</button>
+  </div>
+</div>
+
+<!-- ══ FOUND MODAL ══ -->
+<div class="modal-overlay" id="foundModal">
+  <div class="modal" style="border-top:3px solid var(--found)">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--found)">🎉 Report Found Item</div>
+      <button class="modal-close" onclick="closeModal('foundModal')">✕</button>
+    </div>
+    <div class="form-group"><label class="form-label">Item Name *</label>
+      <input type="text" class="form-input" id="foundName" placeholder="e.g. Blue water bottle, Silver charger..."></div>
+    <div class="form-group"><label class="form-label">Category *</label>
+      <input type="text" class="form-input" id="foundCategory" placeholder="e.g. Wallet, Phone, Keys, Bag..."></div>
+    <div class="form-group"><label class="form-label">City / Area *</label>
+      <input type="text" class="form-input" id="foundCity" placeholder="e.g. Chennai, Mumbai Airport, Lajpat Nagar..."></div>
+    <div class="form-group"><label class="form-label">Where Did You Find It? *</label>
+      <input type="text" class="form-input" id="foundLocation" placeholder="e.g. Platform 3, Food court table, Park bench..."></div>
+    <div class="form-group">
+      <label class="form-label">📍 Pick Location on Map <span style="font-size:.7rem;opacity:.55">(optional — tap map to drop pin)</span></label>
+      <div class="map-addr-row">
+        <input type="text" class="form-input" id="foundAddrSearch" placeholder="Search a place e.g. Chennai Central...">
+        <button class="map-addr-btn" onclick="mapSearchAddr('found')">🔍</button>
+        <button class="map-gps-btn" onclick="mapUseGPS('found')">📡 Me</button>
+      </div>
+      <div class="map-picker-container">
+        <div class="map-picker-el" id="foundMapEl"></div>
+      </div>
+      <div class="map-picker-hint" id="foundMapHint">👆 Tap on the map to drop a pin at that location</div>
+      <a id="foundMapLink" class="map-link" target="_blank">🗺️ View on Google Maps ↗</a>
+    </div>
+    <div class="form-group"><label class="form-label">Description of Item</label>
+      <textarea class="form-textarea" id="foundDesc" placeholder="Color, brand, condition, any visible markings..."></textarea></div>
+    <div class="form-group"><label class="form-label">Item Condition</label>
+      <input type="text" class="form-input" id="foundCondition" placeholder="e.g. Good, Slightly wet, Screen cracked..."></div>
+    <div class="form-group"><label class="form-label">Handover Point</label>
+      <input type="text" class="form-input" id="foundHandover" placeholder="e.g. Police station, Mall info desk, I'll bring it..."></div>
+    <div class="form-group"><label class="form-label">Upload Photo</label>
+      <div class="upload-area" onclick="document.getElementById('foundPhotoInput').click()">
+        <div class="upload-icon" id="foundUploadIcon">📷</div>
+        <div class="upload-text"><strong>Click to upload</strong> a photo</div>
+        <div class="upload-text" style="font-size:.73rem;margin-top:3px">JPG, PNG up to 5MB</div>
+        <img id="foundPreview" class="upload-preview" alt="">
+        <input type="file" id="foundPhotoInput" accept="image/*" style="display:none" onchange="handlePhoto(this,'foundUploadIcon','foundPreview','found')">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your Name * <span style="font-size:.7rem;opacity:.55">(so the owner can contact you)</span></label>
+      <input type="text" class="form-input" id="foundContactName" placeholder="Your full name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your Contact (Email / Phone) *</label>
+      <input type="text" class="form-input" id="foundContactInfo" placeholder="your@email.com or phone number">
+    </div>
+    <button class="btn btn-found" style="width:100%;padding:13px;font-size:.95rem;border-radius:10px;margin-top:4px;font-weight:700" onclick="submitFound()">🎉 Post Found Item</button>
+  </div>
+</div>
+
+<!-- ══ CONTACT MODAL ══ -->
+<div class="modal-overlay" id="contactModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Contact Details</div>
+      <button class="modal-close" onclick="closeModal('contactModal')">✕</button>
+    </div>
+    <div class="contact-info" id="contactDetails"></div>
+  </div>
+</div>
+
+<!-- ══ MAP VIEW MODAL ══ -->
+<div class="modal-overlay" id="mapViewModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title" id="mapViewTitle">📍 Item Location</div>
+      <button class="modal-close" onclick="closeModal('mapViewModal')">✕</button>
+    </div>
+    <div style="text-align:center;padding:16px 0">
+      <div style="font-size:3rem;margin-bottom:12px">🗺️</div>
+      <div id="mapViewDesc" style="font-size:.88rem;color:var(--muted);margin-bottom:20px;line-height:1.7;white-space:pre-line"></div>
+      <a id="mapViewOpenLink" href="#" target="_blank" class="btn btn-primary" style="display:inline-block;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:700">Open in Google Maps ↗</a>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PROFILE MODAL ══ -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title">My Profile</div>
+      <button class="modal-close" onclick="closeModal('profileModal')">✕</button>
+    </div>
+    <div id="profileContent"></div>
+  </div>
+</div>
+
+<!-- ══ NOTIFY MODAL ══ -->
+<div class="modal-overlay" id="notifyModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title">🔔 Notifications</div>
+      <button class="modal-close" onclick="closeModal('notifyModal')">✕</button>
+    </div>
+    <div id="notifyListEl">
+      <div style="text-align:center;padding:32px 0;color:var(--muted)">
+        <div style="font-size:2.5rem;margin-bottom:10px">🔔</div>
+        <div style="font-size:.88rem">No notifications yet.<br>You'll be alerted here when a found item matches your lost post.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ══ FORGOT PASSWORD MODAL ══ -->
+<div class="modal-overlay" id="forgotModal" style="z-index:1000">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title">🔑 Reset Password</div>
+      <button class="modal-close" onclick="closeModal('forgotModal')">✕</button>
+    </div>
+    <p style="font-size:.86rem;color:var(--muted);margin-bottom:20px;line-height:1.6">Enter your username and new password below.</p>
+    <div class="form-group">
+      <label class="form-label">Username *</label>
+      <input type="text" class="form-input" id="forgotUsername" placeholder="Your username">
+    </div>
+    <div class="form-group">
+      <label class="form-label">New Password *</label>
+      <div style="position:relative">
+        <input type="password" class="form-input" id="forgotNewPassword" placeholder="Enter new password" style="padding-right:44px">
+        <button type="button" class="eye-toggle" onclick="toggleEye('forgotNewPassword','eyeForgot')" id="eyeForgot">
+          <svg id="eyeForgotIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirm Password *</label>
+      <input type="password" class="form-input" id="forgotConfirmPassword" placeholder="Repeat new password">
+    </div>
+    <div class="auth-error" id="forgotError" style="margin-bottom:14px"></div>
+    <button class="btn btn-primary" style="width:100%;padding:13px;font-size:.95rem;border-radius:10px;font-weight:700" onclick="doResetPassword()">Reset Password</button>
+  </div>
+</div>
+<!-- ══ DELETE CONFIRM MODAL ══ -->
+<div class="modal-overlay" id="deleteConfirmModal">
+  <div class="modal confirm-modal">
+    <div class="confirm-icon">🗑️</div>
+    <div class="confirm-title">Delete this post?</div>
+    <div class="confirm-msg">This action cannot be undone. Your post will be permanently removed.</div>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="closeModal('deleteConfirmModal')">Cancel</button>
+      <button class="btn" id="confirmDeleteBtn" style="background:var(--lost);color:white;font-weight:700">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ IMAGE ZOOM OVERLAY ══ -->
+<div class="zoom-overlay" id="zoomOverlay" onclick="closeZoom()">
+  <button class="zoom-close" onclick="closeZoom()">✕</button>
+  <img id="zoomImg" src="" alt="">
+</div>
+
+<!-- ══ MATCH POPUP ══ -->
+<div class="match-popup" id="matchPopup">
+  <button class="match-popup-close" onclick="closeMatchPopup()">✕</button>
+  <div class="match-popup-title">🔥 Possible Matches Found!</div>
+  <div class="match-popup-body" id="matchPopupBody"></div>
+  <div class="match-popup-footer">
+    <button onclick="closeMatchPopup()" style="background:var(--surface2);color:var(--muted)">Dismiss</button>
+    <button onclick="viewMatches()" style="background:var(--accent);color:#0d0f14">View Matches</button>
+  </div>
+</div>
+
+</div><!-- end #mainApp -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// AUTH SYSTEM
+// ══════════════════════════════════════════════
+var currentUser = null;
+
+// ══════════════════════════════════════════════
+// GOOGLE APPS SCRIPT CONFIG
+// ══════════════════════════════════════════════
+var API_URL = 'https://script.google.com/macros/s/AKfycbwVUXjfqrfX91F_kYB94eaBvLQ7q5TDxCT4pDj5YcYeXntbaIlUnU9urwhNHQzOgOG9pA/exec';
+
+function apiCall(data) {
+  // Use GET with URL params — works from any device without CORS issues
+  var params = Object.keys(data).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]);
+  }).join('&');
+  return fetch(API_URL + '?' + params)
+    .then(function(r) { return r.json(); });
+}
+
+// ── SESSION (still use localStorage for session only) ──
+function getSession() {
+  try { return JSON.parse(localStorage.getItem('findit_session') || 'null'); } catch(e) { return null; }
+}
+function saveSession(u) { localStorage.setItem('findit_session', JSON.stringify(u)); }
+function clearSession() { localStorage.removeItem('findit_session'); }
+
+function switchTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach(function(t,i){ t.classList.toggle('active', (tab==='login'&&i===0)||(tab==='signup'&&i===1)); });
+  document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+  var loginErr = document.getElementById('loginError');
+  var signupErr = document.getElementById('signupError');
+  if (loginErr) loginErr.style.display = 'none';
+  if (signupErr) signupErr.style.display = 'none';
+}
+
+// ── EYE TOGGLE ──────────────────────────────────────────
+function toggleEye(inputId, btnId) {
+  var input = document.getElementById(inputId);
+  var icon = document.getElementById(btnId + 'Icon');
+  var isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  icon.innerHTML = isHidden
+    ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+
+function showAuthError(id, msg) {
+  var el = document.getElementById(id);
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// ── LOGIN ────────────────────────────────────────────
+function doLogin() {
+  var username = document.getElementById('loginUsername').value.trim().toLowerCase();
+  var password = document.getElementById('loginPassword').value;
+  if (!username || !password) { showAuthError('loginError', 'Please fill in all fields.'); return; }
+
+  var btn = document.querySelector('#loginForm .auth-btn');
+  btn.textContent = 'Signing in...'; btn.disabled = true;
+
+  apiCall({ action: 'login', username: username, password: btoa(password) })
+    .then(function(res) {
+      btn.textContent = 'Sign In →'; btn.disabled = false;
+      if (res.error) { showAuthError('loginError', '❌ ' + res.error); return; }
+      loginSuccess(res.user, false);
+    })
+    .catch(function() {
+      btn.textContent = 'Sign In →'; btn.disabled = false;
+      showAuthError('loginError', '❌ Network error. Check your internet connection.');
+    });
+}
+
+// ── SIGNUP ───────────────────────────────────────────
+function doSignup() {
+  var name = document.getElementById('signupName').value.trim();
+  var username = document.getElementById('signupUsername').value.trim().toLowerCase().replace(/\s/g,'');
+  var contact = document.getElementById('signupContact').value.trim();
+  var password = document.getElementById('signupPassword').value;
+
+  if (!name || !username || !contact || !password) { showAuthError('signupError', 'Please fill in all fields.'); return; }
+  if (username.length < 3) { showAuthError('signupError', 'Username must be at least 3 characters.'); return; }
+  if (password.length < 4) { showAuthError('signupError', 'Password must be at least 4 characters.'); return; }
+
+  var isPhone = /^[0-9+\-\s()]+$/.test(contact);
+  if (isPhone) {
+    var digits = contact.replace(/\D/g, '');
+    if (digits.length < 10) { showAuthError('signupError', '❌ Mobile number must be at least 10 digits.'); return; }
+  } else if (!contact.includes('@')) {
+    showAuthError('signupError', '❌ Enter a valid email or 10-digit mobile number.'); return;
+  }
+
+  var btn = document.querySelector('#signupForm .auth-btn');
+  btn.textContent = 'Creating account...'; btn.disabled = true;
+
+  apiCall({ action: 'signup', username: username, name: name, contact: contact, password: btoa(password), joinedAt: Date.now() })
+    .then(function(res) {
+      btn.textContent = 'Create Account →'; btn.disabled = false;
+      if (res.error) { showAuthError('signupError', '❌ ' + res.error); return; }
+      var user = { username: username, name: name, contact: contact, password: btoa(password), joinedAt: Date.now() };
+      loginSuccess(user, true);
+    })
+    .catch(function() {
+      btn.textContent = 'Create Account →'; btn.disabled = false;
+      showAuthError('signupError', '❌ Network error. Check your internet connection.');
+    });
+}
+
+function loginSuccess(user, isNewUser) {
+  currentUser = user;
+  saveSession(user);
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  document.getElementById('headerAvatar').textContent = user.name.charAt(0).toUpperCase();
+  document.getElementById('headerName').textContent = user.name;
+  loadItems();
+  updateStats(); rebuildFilters(); filterItems();
+  if (isNewUser) {
+    showToast('Welcome to FindIt, ' + user.name + '! 🎉', 'success');
+  } else {
+    showToast('Welcome back, ' + user.name + '! 👋', 'success');
+  }
+}
+
+function doLogout() {
+  clearSession();
+  currentUser = null;
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginPassword').value = '';
+  switchTab('login');
+}
+
+// ══════════════════════════════════════════════
+// PERSISTENT STORAGE FOR ITEMS
+// ══════════════════════════════════════════════
+var items = [];
+
+function loadItems() {
+  try { items = JSON.parse(localStorage.getItem('findit_items') || '[]'); } catch(e) { items = []; }
+}
+function saveItems() { localStorage.setItem('findit_items', JSON.stringify(items)); }
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+var currentFilter = 'all';
+var showingMyPosts = false;
+var photoStore = { lost: null, found: null };
+
+// ══════════════════════════════════════════════
+// LOCATION
+// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// INTERACTIVE MAP PICKER (Leaflet + OpenStreetMap)
+// ══════════════════════════════════════════════
+var mapInstances = {};  // { lost: {map, marker, coords}, found: {map, marker, coords} }
+
+function initMap(type) {
+  if (mapInstances[type]) { 
+    setTimeout(function(){ mapInstances[type].map.invalidateSize(); }, 200);
+    return;
+  }
+  var el = document.getElementById(type + 'MapEl');
+  if (!el) return;
+
+  var map = L.map(el, {
+    zoomControl: true,
+    tap: false,          // disable Leaflet's tap — we handle touch manually
+    tapTolerance: 15,
+    touchZoom: true,
+    dragging: true,
+    scrollWheelZoom: true
+  }).setView([20.5937, 78.9629], 5);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 19
+  }).addTo(map);
+
+  mapInstances[type] = { map: map, marker: null, coords: null };
+
+  // Desktop click
+  map.on('click', function(e) {
+    placePin(type, e.latlng.lat, e.latlng.lng);
+  });
+
+  // Mobile touch — use touchend for reliable tap detection
+  var touchStartPos = null;
+  el.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  }, { passive: true });
+
+  el.addEventListener('touchend', function(e) {
+    if (!touchStartPos) return;
+    var t = e.changedTouches[0];
+    var dx = Math.abs(t.clientX - touchStartPos.x);
+    var dy = Math.abs(t.clientY - touchStartPos.y);
+    // Only treat as tap if finger didn't move much (not a drag/pan)
+    if (dx < 10 && dy < 10) {
+      var rect = el.getBoundingClientRect();
+      var point = map.containerPointToLatLng(
+        L.point(t.clientX - rect.left, t.clientY - rect.top)
+      );
+      placePin(type, point.lat, point.lng);
+    }
+    touchStartPos = null;
+  }, { passive: true });
+
+  setTimeout(function() { map.invalidateSize(); }, 300);
+}
+
+function placePin(type, lat, lng) {
+  var data = mapInstances[type];
+  if (!data) return;
+
+  // Remove old marker
+  if (data.marker) data.map.removeLayer(data.marker);
+
+  // Custom pin icon
+  var icon = L.divIcon({
+    html: '<div style="width:24px;height:24px;background:' + (type==='lost'?'#ff6b6b':'#5bde8a') + ';border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.3)"></div>',
+    iconSize: [24, 24], iconAnchor: [12, 24], className: ''
+  });
+
+  data.marker = L.marker([lat, lng], { icon: icon }).addTo(data.map);
+  data.coords = { lat: lat, lng: lng };
+  data.map.panTo([lat, lng]);
+
+  // Reverse geocode to get address name
+  var hint = document.getElementById(type + 'MapHint');
+  hint.textContent = 'Pin dropped! Getting address...';
+  hint.className = 'map-picker-hint';
+
+  fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=17', {
+    headers: { 'Accept-Language': 'en' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    var addr = formatAddress(d);
+    data.address = addr;
+    hint.textContent = '📍 ' + addr;
+    hint.className = 'map-picker-hint pinned';
+    // Show Google Maps link
+    var link = document.getElementById(type + 'MapLink');
+    link.href = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+    link.style.display = 'inline';
+  })
+  .catch(function() {
+    data.address = lat.toFixed(5) + ', ' + lng.toFixed(5);
+    hint.textContent = '📍 ' + data.address;
+    hint.className = 'map-picker-hint pinned';
+  });
+}
+
+function mapSearchAddr(type) {
+  var query = document.getElementById(type + 'AddrSearch').value.trim();
+  if (!query) { showToast('Please type a place to search.', 'error'); return; }
+  showToast('Searching...', 'notify');
+  fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query) + '&limit=1', {
+    headers: { 'Accept-Language': 'en' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.length > 0) {
+      var lat = parseFloat(data[0].lat);
+      var lng = parseFloat(data[0].lon);
+      var m = mapInstances[type];
+      if (m) { m.map.setZoom(15); }
+      placePin(type, lat, lng);
+      document.getElementById(type + 'AddrSearch').value = '';
+      showToast('Location found! Pin dropped. 📍', 'success');
+    } else {
+      showToast('Place not found. Try a different search.', 'error');
+    }
+  })
+  .catch(function() { showToast('Search failed. Check internet.', 'error'); });
+}
+
+function mapUseGPS(type) {
+  if (!navigator.geolocation) { showToast('GPS not supported on this browser.', 'error'); return; }
+  showToast('Getting your location...', 'notify');
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude;
+      var lng = pos.coords.longitude;
+      var m = mapInstances[type];
+      if (m) m.map.setZoom(17);
+      placePin(type, lat, lng);
+    },
+    function(err) {
+      var msg = err.code === 1 ? 'Location denied. Allow in browser settings.' :
+                err.code === 2 ? 'Location unavailable. Search manually.' :
+                'Location timed out. Try again.';
+      showToast(msg, 'error');
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+function formatAddress(data) {
+  if (!data || !data.address) return data.display_name || 'Unknown location';
+  var a = data.address;
+  var parts = [];
+  if (a.road || a.pedestrian || a.footway) parts.push(a.road || a.pedestrian || a.footway);
+  if (a.neighbourhood || a.suburb) parts.push(a.neighbourhood || a.suburb);
+  if (a.city || a.town || a.village || a.county) parts.push(a.city || a.town || a.village || a.county);
+  if (a.state) parts.push(a.state);
+  return parts.length > 0 ? parts.join(', ') : (data.display_name || 'Unknown location');
+}
+
+function getMapCoords(type) {
+  return mapInstances[type] ? mapInstances[type].coords : null;
+}
+
+function getMapAddress(type) {
+  return mapInstances[type] ? (mapInstances[type].address || null) : null;
+}
+
+function resetMapPicker(type) {
+  var data = mapInstances[type];
+  if (!data) return;
+  if (data.marker) { data.map.removeLayer(data.marker); data.marker = null; }
+  data.coords = null; data.address = null;
+  document.getElementById(type + 'AddrSearch').value = '';
+  var hint = document.getElementById(type + 'MapHint');
+  hint.textContent = '👆 Tap on the map to drop a pin at that location';
+  hint.className = 'map-picker-hint';
+  document.getElementById(type + 'MapLink').style.display = 'none';
+}
+
+function reverseGeocode(lat, lng, type) {
+  var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=17&addressdetails=1';
+  fetch(url, { headers: { 'Accept-Language': 'en' } })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var address = formatAddress(data);
+      document.getElementById(type + 'CoordInput').value = address;
+      // Store coords hidden for map link
+      document.getElementById(type + 'CoordInput').dataset.lat = lat;
+      document.getElementById(type + 'CoordInput').dataset.lng = lng;
+      updateMapLink(type, lat, lng);
+      showToast('📍 Location: ' + address, 'success');
+    })
+    .catch(function() {
+      // Fallback to raw coords if reverse geocoding fails
+      var val = lat.toFixed(5) + ', ' + lng.toFixed(5);
+      document.getElementById(type + 'CoordInput').value = val;
+      document.getElementById(type + 'CoordInput').dataset.lat = lat;
+      document.getElementById(type + 'CoordInput').dataset.lng = lng;
+      updateMapLink(type, lat, lng);
+      showToast('Location captured! ' + val, 'success');
+    });
+}
+
+function formatAddress(data) {
+  if (!data || !data.address) return data.display_name || 'Unknown location';
+  var a = data.address;
+  var parts = [];
+  // Road / street name
+  if (a.road || a.pedestrian || a.footway) parts.push(a.road || a.pedestrian || a.footway);
+  // Neighbourhood / suburb
+  if (a.neighbourhood || a.suburb) parts.push(a.neighbourhood || a.suburb);
+  // City / town / village
+  if (a.city || a.town || a.village || a.county) parts.push(a.city || a.town || a.village || a.county);
+  // State
+  if (a.state) parts.push(a.state);
+  return parts.length > 0 ? parts.join(', ') : (data.display_name || 'Unknown location');
+}
+
+function parseCoords(val) {
+  if (!val) return null;
+  var m = val.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  var gm = val.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (gm) return { lat: parseFloat(gm[1]), lng: parseFloat(gm[2]) };
+  return null;
+}
+
+function onCoordInput(type) {
+  var val = document.getElementById(type + 'CoordInput').value.trim();
+  var coords = parseCoords(val);
+  if (coords) {
+    updateMapLink(type, coords.lat, coords.lng);
+    // Store for later retrieval
+    document.getElementById(type + 'CoordInput').dataset.lat = coords.lat;
+    document.getElementById(type + 'CoordInput').dataset.lng = coords.lng;
+  } else {
+    document.getElementById(type + 'MapLink').style.display = 'none';
+  }
+}
+
+// Called when user leaves the coord input — converts raw coords to address
+function onCoordBlur(type) {
+  var input = document.getElementById(type + 'CoordInput');
+  var val = input.value.trim();
+  var coords = parseCoords(val);
+  if (coords) {
+    // If it still looks like raw coords (not already an address), reverse geocode it
+    reverseGeocode(coords.lat, coords.lng, type);
+  }
+}
+
+function getCoordsFromInput(type) {
+  var input = document.getElementById(type + 'CoordInput');
+  // First try dataset (set by reverse geocode or locate)
+  if (input.dataset.lat && input.dataset.lng) {
+    return { lat: parseFloat(input.dataset.lat), lng: parseFloat(input.dataset.lng) };
+  }
+  // Fallback: try parsing the value directly
+  return parseCoords(input.value.trim());
+}
+
+function updateMapLink(type, lat, lng) {
+  var link = document.getElementById(type + 'MapLink');
+  link.href = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+  link.style.display = 'inline-block';
+}
+
+// ══════════════════════════════════════════════
+// FILTERS
+// ══════════════════════════════════════════════
+function rebuildFilters() {
+  var bar = document.getElementById('filterBar');
+  var cats = [];
+  items.forEach(function(i) { if (i.category && cats.indexOf(i.category) === -1) cats.push(i.category); });
+  cats.sort();
+  var f = currentFilter;
+  var html = fchip('all','All Items',f) + fchip('lost','😔 Lost',f) + fchip('found','🎉 Found',f) + fchip('urgent','🚨 Urgent',f) + fchip('resolved','✅ Resolved',f);
+  cats.forEach(function(cat) {
+    html += '<button class="filter-chip ' + (f===cat?'active':'') + '" onclick="setFilter(\'' + cat.replace(/'/g,"\\'") + '\',this)">' + escHtml(cat) + '</button>';
+  });
+  bar.innerHTML = html;
+  document.getElementById('categoryCount').textContent = cats.length;
+}
+
+function fchip(val, label, current) {
+  return '<button class="filter-chip ' + (current===val?'active':'') + '" onclick="setFilter(\'' + val + '\',this)">' + label + '</button>';
+}
+
+function setFilter(f, el) {
+  currentFilter = f; showingMyPosts = false;
+  document.getElementById('myPostsBtn').classList.remove('active');
+  document.querySelectorAll('#filterBar .filter-chip').forEach(function(c){ c.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  filterItems();
+}
+
+function toggleMyPosts() {
+  showingMyPosts = !showingMyPosts;
+  document.getElementById('myPostsBtn').classList.toggle('active', showingMyPosts);
+  if (showingMyPosts) {
+    document.querySelectorAll('#filterBar .filter-chip').forEach(function(c){ c.classList.remove('active'); });
+    currentFilter = 'all';
+  }
+  filterItems();
+}
+
+// ══════════════════════════════════════════════
+// RENDER CARDS
+// ══════════════════════════════════════════════
+function renderCards(data) {
+  var grid = document.getElementById('cardsGrid');
+  var label = document.getElementById('itemCountLabel');
+  if (items.length === 0) {
+    label.textContent = '';
+    grid.innerHTML = '<div class="empty-state"><div class="icon">📭</div><h3>No posts yet — be the first!</h3>' +
+      '<p>Post a lost or found item and help someone nearby.</p>' +
+      '<div class="cta-hint"><button class="btn btn-lost" onclick="openPostModal(\'lost\')">😔 Report Lost</button>' +
+      '<button class="btn btn-found" onclick="openPostModal(\'found\')">🎉 Report Found</button></div></div>';
+    return;
+  }
+  if (data.length === 0) {
+    label.textContent = '— 0 results';
+    grid.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><h3>No matches</h3>' +
+      (showingMyPosts ? '<p>You haven\'t posted anything yet.</p>' : '<p>Try a different filter or keyword.</p>') + '</div>';
+    return;
+  }
+  label.textContent = '— ' + data.length + ' item' + (data.length !== 1 ? 's' : '');
+  var html = '';
+  data.forEach(function(item, i) {
+    var ismine = currentUser && item.postedBy === currentUser.username;
+    var match = findMatch(item);
+    var matchBanner = match && !item.resolved
+      ? '<div class="match-banner">🔥 <strong>Possible match!</strong> A ' + match.type + ' "' + escHtml(match.category) + '" in ' + escHtml(match.city || match.location) + ' may be related.</div>' : '';
+
+    var badges = '<div class="card-badge-wrap">';
+    if (item.resolved) badges += '<span class="cbadge cbadge-resolved">✅ Resolved</span>';
+    else if (item.urgent) badges += '<span class="cbadge cbadge-urgent">🚨 Urgent</span>';
+    if (ismine) badges += '<span class="cbadge cbadge-mine">✏️ Mine</span>';
+    badges += '</div>';
+
+    var extras = '';
+    if (item.type === 'found' && item.handover) extras += '<div class="card-extra" style="color:var(--found)">🏷️ ' + escHtml(item.handover) + '</div>';
+    if (item.type === 'found' && item.condition) extras += '<div class="card-extra" style="color:var(--muted)">🔍 ' + escHtml(item.condition) + '</div>';
+    if (item.type === 'lost' && item.dateTime) extras += '<div class="card-extra" style="color:var(--muted)">🕐 ' + escHtml(item.dateTime) + '</div>';
+
+    var cityStr = item.city ? ' · <span style="color:var(--accent2)">' + escHtml(item.city) + '</span>' : '';
+    var mapBtn = item.coords ? '<button class="card-btn map-btn" onclick="viewOnMap(' + item.id + ')">🗺️</button>' : '';
+    var resolveBtn = ismine && !item.resolved ? '<button class="card-btn resolve-btn" onclick="markResolved(' + item.id + ')">✅</button>' : '';
+    var deleteBtn = ismine ? '<button class="card-btn delete-btn" onclick="confirmDelete(' + item.id + ')">🗑️</button>' : '';
+    var shareBtn = '<button class="card-btn share-btn" onclick="shareOnWhatsApp(' + item.id + ')">📤</button>';
+    var imgHtml = item.photo
+      ? '<img src="' + item.photo + '" alt="' + escHtml(item.title) + '" onclick="openZoom(\'' + item.photo.replace(/'/g,"\\'") + '\')" style="cursor:zoom-in">'
+      : '📦';
+    var timeAgo = getTimeAgo(item.createdAt);
+
+    html += '<div class="card ' + (item.resolved ? 'resolved ' : '') + (ismine ? 'my-post' : '') + '" style="animation-delay:' + (i*.05) + 's">' +
+      '<div class="card-img">' + imgHtml + badges + '</div>' +
+      '<div class="card-body">' + matchBanner +
+        '<div class="card-header">' +
+          '<span class="card-tag tag-' + item.type + '">' + (item.type==='lost'?'😔 Lost':'🎉 Found') + '</span>' +
+          (item.urgent ? '<span class="card-tag tag-urgent">🚨 Urgent</span>' : '') +
+          '<span class="card-category">' + escHtml(item.category) + '</span>' +
+        '</div>' +
+        '<div class="card-title">' + escHtml(item.title) + '</div>' +
+        '<div class="card-desc">' + escHtml(item.desc || 'No description provided.') + '</div>' +
+        extras +
+        (item.type==='found' && item.contact ? '<div class="card-extra" style="color:var(--accent2)">📬 Finder: ' + escHtml(item.name) + ' · ' + escHtml(item.contact) + '</div>' : '') +
+        '<div class="card-views">👁 ' + (item.views || 0) + ' views · ' + timeAgo + '</div>' +
+        '<div class="card-meta">' +
+          '<div class="card-location">' + (item.type==='found'?'🎯':'📍') + ' ' + escHtml(item.location) + cityStr +
+            (item.pinAddress ? '<br><span style="font-size:.7rem;color:var(--accent2)">📌 ' + escHtml(item.pinAddress) + '</span>' : '') +
+            '<br><span style="font-size:.68rem;opacity:.5">by ' + escHtml(item.postedByName) + '</span></div>' +
+          '<div class="card-actions">' + shareBtn + mapBtn + resolveBtn + deleteBtn +
+            '<button class="card-btn contact-btn" onclick="showContact(' + item.id + ')">Contact</button>' +
+          '</div>' +
+        '</div>' +
+      '</div></div>';
+  });
+  grid.innerHTML = html;
+}
+
+function updateStats() {
+  document.getElementById('totalItems').textContent = items.length;
+  document.getElementById('lostCount').textContent = items.filter(function(i){ return i.type==='lost'&&!i.resolved; }).length;
+  document.getElementById('foundCount').textContent = items.filter(function(i){ return i.type==='found'&&!i.resolved; }).length;
+  document.getElementById('resolvedCount').textContent = items.filter(function(i){ return i.resolved; }).length;
+}
+
+function filterItems() {
+  var q = document.getElementById('searchInput').value.toLowerCase().trim();
+  var now = Date.now();
+  var filtered = items.filter(function(i) {
+    if (showingMyPosts) return currentUser && i.postedBy === currentUser.username;
+    if (currentFilter === 'resolved') return i.resolved;
+    if (currentFilter === 'urgent') return i.urgent && !i.resolved;
+    if (currentFilter === 'lost') return i.type==='lost' && !i.resolved;
+    if (currentFilter === 'found') return i.type==='found' && !i.resolved;
+    if (currentFilter !== 'all') return i.category === currentFilter;
+    return true;
+  });
+  // Date filter
+  if (currentDateFilter !== 'all') {
+    filtered = filtered.filter(function(i) {
+      if (!i.createdAt) return false;
+      var diff = now - i.createdAt;
+      if (currentDateFilter === 'today') return diff < 86400000;
+      if (currentDateFilter === 'week') return diff < 7 * 86400000;
+      if (currentDateFilter === 'month') return diff < 30 * 86400000;
+      if (currentDateFilter === 'year') return diff < 365 * 86400000;
+      return true;
+    });
+  }
+  if (q) filtered = filtered.filter(function(i) {
+    return i.title.toLowerCase().includes(q) || (i.desc||'').toLowerCase().includes(q) ||
+      i.category.toLowerCase().includes(q) || i.location.toLowerCase().includes(q) ||
+      (i.city||'').toLowerCase().includes(q) || i.name.toLowerCase().includes(q);
+  });
+  renderCards(filtered);
+}
+
+// ══════════════════════════════════════════════
+// SMART MATCH
+// ══════════════════════════════════════════════
+function findMatch(item) {
+  var opp = item.type==='lost'?'found':'lost';
+  for (var i=0;i<items.length;i++) {
+    var o = items[i];
+    if (o.id!==item.id && o.type===opp && !o.resolved && !item.resolved &&
+        o.category.toLowerCase()===item.category.toLowerCase() &&
+        (o.city||'').toLowerCase()===(item.city||'').toLowerCase() && (item.city||'').length>0) return o;
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════
+// ACTIONS
+// ══════════════════════════════════════════════
+function markResolved(id) {
+  var item = items.find(function(i){ return i.id===id; });
+  if (!item || !currentUser || item.postedBy !== currentUser.username) return;
+  item.resolved = true; saveItems();
+  updateStats(); rebuildFilters(); filterItems();
+  showToast('Marked as resolved! 🎉', 'success');
+}
+
+function confirmDelete(id) {
+  var btn = document.getElementById('confirmDeleteBtn');
+  btn.onclick = function() {
+    var item = items.find(function(i){ return i.id===id; });
+    if (!item || !currentUser || item.postedBy !== currentUser.username) return;
+    items = items.filter(function(i){ return i.id!==id; });
+    saveItems(); updateStats(); rebuildFilters(); filterItems();
+    closeModal('deleteConfirmModal');
+    showToast('Post deleted successfully.', 'notify');
+  };
+  document.getElementById('deleteConfirmModal').classList.add('open');
+}
+
+function viewOnMap(id) {
+  var item = items.find(function(i){ return i.id===id; });
+  if (!item || !item.coords) return;
+  document.getElementById('mapViewTitle').textContent = '📍 ' + item.title;
+  document.getElementById('mapViewDesc').textContent =
+    (item.type==='lost'?'Last seen at: ':'Found at: ') + item.location + (item.city?' · '+item.city:'') +
+    '\nCoordinates: ' + item.coords.lat.toFixed(5) + ', ' + item.coords.lng.toFixed(5);
+  document.getElementById('mapViewOpenLink').href = 'https://www.google.com/maps?q=' + item.coords.lat + ',' + item.coords.lng + '&z=16';
+  document.getElementById('mapViewModal').classList.add('open');
+}
+
+// ══════════════════════════════════════════════
+// PROFILE
+// ══════════════════════════════════════════════
+function openProfile() {
+  if (!currentUser) return;
+  var myItems = items.filter(function(i){ return i.postedBy === currentUser.username; });
+  var myLost = myItems.filter(function(i){ return i.type==='lost'; }).length;
+  var myFound = myItems.filter(function(i){ return i.type==='found'; }).length;
+  var myResolved = myItems.filter(function(i){ return i.resolved; }).length;
+  var joined = new Date(currentUser.joinedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+  document.getElementById('profileContent').innerHTML =
+    '<div class="profile-avatar">' + currentUser.name.charAt(0).toUpperCase() + '</div>' +
+    '<div style="text-align:center;margin-bottom:4px"><strong style="font-family:Syne,sans-serif;font-size:1.1rem">' + escHtml(currentUser.name) + '</strong></div>' +
+    '<div style="text-align:center;font-size:.82rem;color:var(--muted);margin-bottom:4px">@' + escHtml(currentUser.username) + '</div>' +
+    '<div style="text-align:center;font-size:.8rem;color:var(--muted);margin-bottom:16px">📬 ' + escHtml(currentUser.contact) + '</div>' +
+    '<div class="profile-stat-row">' +
+      '<div class="profile-stat"><div class="profile-stat-num">' + myLost + '</div><div class="profile-stat-label">Lost Posts</div></div>' +
+      '<div class="profile-stat"><div class="profile-stat-num">' + myFound + '</div><div class="profile-stat-label">Found Posts</div></div>' +
+      '<div class="profile-stat"><div class="profile-stat-num">' + myResolved + '</div><div class="profile-stat-label">Resolved</div></div>' +
+    '</div>' +
+    '<div style="font-size:.76rem;color:var(--muted);text-align:center;margin-top:8px">Member since ' + joined + '</div>' +
+    '<button class="btn btn-ghost" style="width:100%;margin-top:20px" onclick="toggleMyPosts();closeModal(\'profileModal\')">📋 View My Posts</button>';
+  document.getElementById('profileModal').classList.add('open');
+}
+
+// ══════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════
+function openPostModal(type) {
+  document.getElementById(type + 'Modal').classList.add('open');
+  setTimeout(function() { initMap(type); }, 250);
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ══════════════════════════════════════════════
+// PHOTO
+// ══════════════════════════════════════════════
+function handlePhoto(input, iconId, previewId, storeKey) {
+  var file = input.files[0]; if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    photoStore[storeKey] = e.target.result;
+    document.getElementById(iconId).style.display = 'none';
+    var prev = document.getElementById(previewId);
+    prev.src = e.target.result; prev.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ══════════════════════════════════════════════
+// SUBMIT LOST
+// ══════════════════════════════════════════════
+function submitLost() {
+  var name = document.getElementById('lostName').value.trim();
+  var category = document.getElementById('lostCategory').value.trim();
+  var city = document.getElementById('lostCity').value.trim();
+  var contactName = document.getElementById('lostContactName').value.trim();
+  var contactInfo = document.getElementById('lostContactInfo').value.trim();
+  if (!name){ showToast('Please enter the item name!','error'); return; }
+  if (!category){ showToast('Please enter a category!','error'); return; }
+  if (!city){ showToast('Please enter your city / area!','error'); return; }
+  if (!contactName){ showToast('Please enter your name!','error'); return; }
+  if (!contactInfo){ showToast('Please enter your contact info!','error'); return; }
+  var coords = getMapCoords('lost');
+  var pinAddress = getMapAddress('lost');
+  var item = {
+    id: Date.now(), type:'lost', resolved:false, createdAt:Date.now(),
+    title:name, category:category, city:city,
+    location:document.getElementById('lostLocation').value.trim()||'Unknown location',
+    pinAddress: pinAddress || null,
+    coords:coords, dateTime:document.getElementById('lostDateTime').value.trim(),
+    desc:document.getElementById('lostDesc').value.trim(),
+    urgent:document.getElementById('lostUrgent').checked,
+    contact:contactInfo, name:contactName,
+    postedBy:currentUser.username, postedByName:contactName,
+    date:'Just now', photo:photoStore.lost
+  };
+  items.unshift(item); saveItems();
+  updateStats(); rebuildFilters(); currentFilter='all'; showingMyPosts=false;
+  document.getElementById('myPostsBtn').classList.remove('active');
+  filterItems(); closeModal('lostModal');
+  showToast('Lost item posted! Hope you find it soon. 🤞','success');
+  setTimeout(function(){ checkAutoMatch(item); }, 600);
+  resetForm('lost');
+}
+
+// ══════════════════════════════════════════════
+// SUBMIT FOUND
+// ══════════════════════════════════════════════
+function submitFound() {
+  var name = document.getElementById('foundName').value.trim();
+  var category = document.getElementById('foundCategory').value.trim();
+  var city = document.getElementById('foundCity').value.trim();
+  var location = document.getElementById('foundLocation').value.trim();
+  var finderName = document.getElementById('foundContactName').value.trim();
+  var finderContact = document.getElementById('foundContactInfo').value.trim();
+  if (!name){ showToast('Please enter the item name!','error'); return; }
+  if (!category){ showToast('Please enter a category!','error'); return; }
+  if (!city){ showToast('Please enter your city / area!','error'); return; }
+  if (!location){ showToast('Please enter where you found it!','error'); return; }
+  if (!finderName){ showToast('Please enter your name!','error'); return; }
+  if (!finderContact){ showToast('Please enter your contact info!','error'); return; }
+  var coords = getMapCoords('found');
+  var pinAddress = getMapAddress('found');
+  var item = {
+    id:Date.now(), type:'found', resolved:false, createdAt:Date.now(),
+    title:name, category:category, city:city, location:location,
+    pinAddress: pinAddress || null,
+    coords:coords,
+    desc:document.getElementById('foundDesc').value.trim(),
+    condition:document.getElementById('foundCondition').value.trim(),
+    handover:document.getElementById('foundHandover').value.trim(),
+    contact: finderContact, name: finderName,
+    postedBy:currentUser.username, postedByName: finderName,
+    date:'Just now', photo:photoStore.found
+  };
+  items.unshift(item); saveItems();
+  updateStats(); rebuildFilters(); currentFilter='all'; showingMyPosts=false;
+  document.getElementById('myPostsBtn').classList.remove('active');
+  filterItems(); checkNotifyMatches(item); closeModal('foundModal');
+  showToast('Found item posted! The owner can now find you. 🎉','success');
+  setTimeout(function(){ checkAutoMatch(item); }, 600);
+  resetForm('found');
+}
+
+// ══════════════════════════════════════════════
+// RESET FORM
+// ══════════════════════════════════════════════
+function resetForm(type) {
+  var ids = type==='lost'
+    ? ['lostName','lostCategory','lostCity','lostLocation','lostDateTime','lostDesc','lostContactName','lostContactInfo']
+    : ['foundName','foundCategory','foundCity','foundLocation','foundDesc','foundCondition','foundHandover','foundContactName','foundContactInfo'];
+  ids.forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  if (type==='lost') document.getElementById('lostUrgent').checked=false;
+  document.getElementById(type+'UploadIcon').style.display='block';
+  var prev=document.getElementById(type+'Preview'); prev.src=''; prev.style.display='none';
+  document.getElementById(type+'PhotoInput').value=''; photoStore[type]=null;
+  resetMapPicker(type);
+}
+
+// ══════════════════════════════════════════════
+// CONTACT
+// ══════════════════════════════════════════════
+function showContact(id) {
+  var item = items.find(function(i){ return i.id===id; }); if (!item) return;
+
+  // Increment views (not for own posts)
+  if (!currentUser || item.postedBy !== currentUser.username) {
+    item.views = (item.views || 0) + 1;
+    saveItems();
+    filterItems(); // refresh cards to update view count
+  }
+
+  var rows = cRow('👤', item.type==='found'?'Found By':'Posted By', item.name) +
+    '<div class="contact-row"><div class="contact-icon">📬</div><div><div class="contact-label">Contact</div>' +
+    '<div class="contact-value">' + escHtml(item.contact) +
+    '<button class="copy-btn" onclick="copyText(\'' + escHtml(item.contact) + '\',this)">📋 Copy</button>' +
+    '</div></div></div>' +
+    cRow('📦','Item', item.title + ' (' + item.category + ')') +
+    (item.city ? cRow('🌍','City / Area', item.city) : '') +
+    cRow('📍', item.type==='found'?'Found At':'Last Seen', item.location) +
+    (item.pinAddress ? cRow('📌','Pinned Location', item.pinAddress) : '') +
+    (item.type==='lost'&&item.dateTime ? cRow('🕐','Lost Around', item.dateTime) : '') +
+    (item.type==='found'&&item.handover ? cRow('🏷️','Collect From', item.handover) : '') +
+    (item.type==='found'&&item.condition ? cRow('🔍','Condition', item.condition) : '') +
+    '<div class="contact-row"><div class="contact-icon">'+(item.urgent?'🚨':item.type==='lost'?'😔':'🎉')+'</div>' +
+    '<div><div class="contact-label">Status</div><div class="contact-value" style="color:'+
+    (item.resolved?'var(--found)':item.urgent?'var(--urgent)':item.type==='lost'?'var(--lost)':'var(--found)')+'">'+
+    (item.resolved?'✅ Resolved':item.urgent?'🚨 URGENT':item.type==='lost'?'Lost — Help Needed':'Found — Claim It!')+
+    '</div></div></div>';
+  if (item.coords) rows += '<div class="contact-row"><div class="contact-icon">🗺️</div><div><div class="contact-label">Location</div>' +
+    '<div class="contact-value"><a href="https://www.google.com/maps?q='+item.coords.lat+','+item.coords.lng+'" target="_blank" style="color:var(--accent2);text-decoration:none">Open in Google Maps ↗</a></div></div></div>';
+  document.getElementById('contactDetails').innerHTML = rows;
+  document.getElementById('contactModal').classList.add('open');
+}
+
+function cRow(icon, label, value) {
+  return '<div class="contact-row"><div class="contact-icon">'+icon+'</div><div><div class="contact-label">'+label+'</div><div class="contact-value">'+escHtml(value)+'</div></div></div>';
+}
+
+// ══════════════════════════════════════════════
+// NOTIFY
+// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// NOTIFICATIONS — message only, no form
+// ══════════════════════════════════════════════
+var notifyMessages = [];
+
+function openNotifyModal() {
+  renderNotifyList();
+  document.getElementById('notifyModal').classList.add('open');
+}
+
+function addNotification(msg, type) {
+  notifyMessages.unshift({ id: Date.now(), msg: msg, type: type || 'info', time: new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}) });
+  if (notifyMessages.length > 20) notifyMessages.pop(); // keep max 20
+  updateBellBadge();
+}
+
+function renderNotifyList() {
+  var el = document.getElementById('notifyListEl');
+  if (!notifyMessages.length) {
+    el.innerHTML = '<div style="text-align:center;padding:32px 0;color:var(--muted)">' +
+      '<div style="font-size:2.5rem;margin-bottom:10px">🔔</div>' +
+      '<div style="font-size:.88rem">No notifications yet.<br>You\'ll be alerted here when a found item matches your lost post.</div>' +
+      '</div>';
+    return;
+  }
+  var html = '<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.4px">' +
+    notifyMessages.length + ' Notification' + (notifyMessages.length > 1 ? 's' : '') +
+    ' <button onclick="clearNotifications()" style="float:right;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline">Clear all</button></div>';
+  notifyMessages.forEach(function(n) {
+    var icon = n.type === 'match' ? '🎉' : n.type === 'error' ? '❌' : '🔔';
+    var color = n.type === 'match' ? 'var(--found)' : n.type === 'error' ? 'var(--lost)' : 'var(--accent)';
+    html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;margin-bottom:8px">' +
+      '<span style="font-size:1.2rem;margin-top:1px">' + icon + '</span>' +
+      '<div style="flex:1">' +
+        '<div style="font-size:.86rem;color:var(--text);line-height:1.45">' + escHtml(n.msg) + '</div>' +
+        '<div style="font-size:.72rem;color:var(--muted);margin-top:4px">' + n.time + '</div>' +
+      '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function clearNotifications() {
+  notifyMessages = [];
+  updateBellBadge();
+  renderNotifyList();
+}
+
+function updateBellBadge() {
+  var b = document.getElementById('bellBadge');
+  var unread = notifyMessages.length;
+  if (unread > 0) { b.textContent = unread > 9 ? '9+' : unread; b.style.display = 'flex'; }
+  else b.style.display = 'none';
+}
+
+function checkNotifyMatches(newItem) {
+  if (newItem.type !== 'found') return;
+  // Check if current user has any lost posts matching this found item
+  var myLostPosts = items.filter(function(i) {
+    return i.type === 'lost' && !i.resolved &&
+      i.postedBy === currentUser.username &&
+      i.category.toLowerCase() === newItem.category.toLowerCase() &&
+      (i.city || '').toLowerCase() === (newItem.city || '').toLowerCase();
+  });
+  if (myLostPosts.length > 0) {
+    var msg = '🎉 A "' + newItem.category + '" was just found in ' + newItem.city + '! It might be your "' + myLostPosts[0].title + '". Check the post and contact the finder.';
+    addNotification(msg, 'match');
+    showToast('🔔 Possible match found for your lost item!', 'notify');
+  }
+}
+
+// ══════════════════════════════════════════════
+// FORGOT PASSWORD
+// ══════════════════════════════════════════════
+function openForgotModal() {
+  // Can be triggered from auth screen — show over auth
+  document.getElementById('forgotModal').classList.add('open');
+  document.getElementById('forgotUsername').value = '';
+  document.getElementById('forgotNewPassword').value = '';
+  document.getElementById('forgotConfirmPassword').value = '';
+  document.getElementById('forgotError').style.display = 'none';
+}
+
+function doResetPassword() {
+  var username = document.getElementById('forgotUsername').value.trim().toLowerCase();
+  var newPwd = document.getElementById('forgotNewPassword').value;
+  var confirmPwd = document.getElementById('forgotConfirmPassword').value;
+  var errEl = document.getElementById('forgotError');
+
+  if (!username || !newPwd || !confirmPwd) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
+  if (newPwd.length < 4) { errEl.textContent = '❌ Password must be at least 4 characters.'; errEl.style.display = 'block'; return; }
+  if (newPwd !== confirmPwd) { errEl.textContent = '❌ Passwords do not match.'; errEl.style.display = 'block'; return; }
+
+  var btn = document.querySelector('#forgotModal .btn-primary');
+  btn.textContent = 'Resetting...'; btn.disabled = true;
+
+  apiCall({ action: 'resetpwd', username: username, password: btoa(newPwd) })
+    .then(function(res) {
+      btn.textContent = 'Reset Password'; btn.disabled = false;
+      if (res.error) { errEl.textContent = '❌ ' + res.error; errEl.style.display = 'block'; return; }
+      if (currentUser && currentUser.username === username) {
+        currentUser.password = btoa(newPwd);
+        saveSession(currentUser);
+      }
+      closeModal('forgotModal');
+      showToast('✅ Password reset successfully!', 'success');
+    })
+    .catch(function() {
+      btn.textContent = 'Reset Password'; btn.disabled = false;
+      errEl.textContent = '❌ Network error. Try again.'; errEl.style.display = 'block';
+    });
+}
+
+// ══════════════════════════════════════════════
+// 1. TIME AGO
+// ══════════════════════════════════════════════
+function getTimeAgo(ts) {
+  if (!ts) return 'Just now';
+  var diff = Date.now() - ts;
+  var mins = Math.floor(diff / 60000);
+  var hours = Math.floor(diff / 3600000);
+  var days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return mins + ' min' + (mins > 1 ? 's' : '') + ' ago';
+  if (hours < 24) return hours + ' hour' + (hours > 1 ? 's' : '') + ' ago';
+  if (days < 30) return days + ' day' + (days > 1 ? 's' : '') + ' ago';
+  return new Date(ts).toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+}
+
+// ══════════════════════════════════════════════
+// 2. DATE FILTER DROPDOWN
+// ══════════════════════════════════════════════
+var currentDateFilter = 'all';
+
+function toggleDateDropdown(e) {
+  e.stopPropagation();
+  var dd = document.getElementById('dateDropdown');
+  dd.classList.toggle('open');
+}
+
+function selectDateFilter(range, label) {
+  currentDateFilter = range;
+  // Update button label
+  document.getElementById('dateFilterLabel').textContent = label;
+  // Close dropdown
+  document.getElementById('dateDropdown').classList.remove('open');
+  // Mark selected
+  document.querySelectorAll('#dateDropdown button').forEach(function(b){ b.classList.remove('selected'); });
+  var idx = {'all':0,'today':1,'week':2,'month':3,'year':4}[range];
+  var btns = document.querySelectorAll('#dateDropdown button');
+  if (btns[idx]) btns[idx].classList.add('selected');
+  // Update chip style
+  var chip = document.getElementById('dateFilterBtn');
+  chip.style.background = range === 'all' ? '' : 'rgba(79,142,247,.15)';
+  filterItems();
+}
+
+// Close when tapping anywhere else
+document.addEventListener('click', function() {
+  var dd = document.getElementById('dateDropdown');
+  if (dd) dd.classList.remove('open');
+});
+
+// ══════════════════════════════════════════════
+// 3. IMAGE ZOOM
+// ══════════════════════════════════════════════
+function openZoom(src) {
+  document.getElementById('zoomImg').src = src;
+  document.getElementById('zoomOverlay').classList.add('open');
+  event.stopPropagation();
+}
+
+function closeZoom() {
+  document.getElementById('zoomOverlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeZoom();
+});
+
+// ══════════════════════════════════════════════
+// 4. COPY CONTACT
+// ══════════════════════════════════════════════
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = '✅ Copied';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 2000);
+  }).catch(function() {
+    // Fallback for older browsers
+    var el = document.createElement('textarea');
+    el.value = text; document.body.appendChild(el);
+    el.select(); document.execCommand('copy');
+    document.body.removeChild(el);
+    btn.textContent = '✅ Copied'; btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ══════════════════════════════════════════════
+// 5. SHARE ON WHATSAPP
+// ══════════════════════════════════════════════
+function shareOnWhatsApp(id) {
+  var item = items.find(function(i){ return i.id === id; });
+  if (!item) return;
+  var status = item.type === 'lost' ? '😔 LOST ITEM' : '🎉 FOUND ITEM';
+  var msg = status + '\n\n' +
+    '📦 *' + item.title + '* (' + item.category + ')\n' +
+    '📍 ' + item.location + (item.city ? ', ' + item.city : '') + '\n' +
+    (item.type === 'lost' && item.dateTime ? '🕐 Lost: ' + item.dateTime + '\n' : '') +
+    (item.type === 'found' && item.handover ? '🏷️ Collect from: ' + item.handover + '\n' : '') +
+    (item.desc ? '📝 ' + item.desc + '\n' : '') +
+    '\n📬 Contact: *' + item.contact + '*\n' +
+    '— Posted via FindIt Lost & Found App';
+  var url = 'https://wa.me/?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+}
+
+// ══════════════════════════════════════════════
+// 6. SMART AUTO-MATCH POPUP
+// ══════════════════════════════════════════════
+var matchPopupItemIds = [];
+
+function checkAutoMatch(newItem) {
+  var opposite = newItem.type === 'lost' ? 'found' : 'lost';
+  var matches = items.filter(function(i) {
+    return i.id !== newItem.id &&
+      i.type === opposite && !i.resolved &&
+      i.category.toLowerCase() === newItem.category.toLowerCase() &&
+      (i.city || '').toLowerCase() === (newItem.city || '').toLowerCase() &&
+      (newItem.city || '').length > 0;
+  });
+  if (matches.length > 0) {
+    matchPopupItemIds = matches.map(function(m){ return m.id; });
+    var body = matches.length === 1
+      ? 'We found <strong style="color:var(--accent)">' + matches.length + ' possible match</strong> for your post!<br><br>' +
+        '📦 <strong>' + escHtml(matches[0].title) + '</strong> · ' + escHtml(matches[0].city || matches[0].location) +
+        '<br>Posted by ' + escHtml(matches[0].postedByName)
+      : 'We found <strong style="color:var(--accent)">' + matches.length + ' possible matches</strong> for your post in <strong>' + escHtml(newItem.city) + '</strong>!';
+    document.getElementById('matchPopupBody').innerHTML = body;
+    document.getElementById('matchPopup').classList.add('show');
+    setTimeout(function() { document.getElementById('matchPopup').classList.remove('show'); }, 8000);
+  }
+}
+
+function closeMatchPopup() {
+  document.getElementById('matchPopup').classList.remove('show');
+}
+
+function viewMatches() {
+  closeMatchPopup();
+  // Scroll to cards and highlight
+  document.getElementById('cardsGrid').scrollIntoView({ behavior: 'smooth' });
+}
+function escHtml(str){ return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showToast(msg, type){
+  type=type||'success';
+  var colors={success:'var(--found)',error:'var(--lost)',notify:'var(--accent)'};
+  var icons={success:'✅',error:'❌',notify:'🔔'};
+  var t=document.getElementById('toast');
+  t.style.borderColor=colors[type]||colors.success;
+  t.style.color=colors[type]||colors.success;
+  t.innerHTML=(icons[type]||'✅')+' <span>'+msg+'</span>';
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); },4000);
+}
+
+document.querySelectorAll('.modal-overlay').forEach(function(o){
+  o.addEventListener('click', function(e){ if(e.target===o) closeModal(o.id); });
+});
+
+// ══════════════════════════════════════════════
+// INIT — check existing session
+// ══════════════════════════════════════════════
+(function init() {
+  var session = getSession();
+  if (session && session.username) {
+    // Use saved session to auto-login — no network call needed
+    loginSuccess(session, false);
+    return;
+  }
+  // Show auth screen
+})();
+</script>
+</body>
+</html>
